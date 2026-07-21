@@ -1,236 +1,397 @@
-#!/bin/bash
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Blue Team Security+ Lab</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-set -euo pipefail
+<style>
+body {
+    font-family: Arial, sans-serif;
+    background: #07182e;
+    color: #e8f1ff;
+    margin: 0;
+}
 
-echo "========================================"
-echo " Security+ Blue Team Lab Configuration"
-echo "========================================"
+header {
+    background: #0b4f9c;
+    padding: 20px;
+    text-align: center;
+}
 
-[[ $EUID -eq 0 ]] || { echo "Run as root."; exit 1; }
+nav {
+    background: #051020;
+    padding: 10px;
+    text-align: center;
+}
 
-LABUSER="analyst"
-LABPASS="Password123!"
-TTYD_PORT="7681"
+button {
+    background: #1e90ff;
+    border: none;
+    color: white;
+    padding: 10px 15px;
+    margin: 5px;
+    cursor: pointer;
+    border-radius: 5px;
+}
 
-echo "[1/15] Updating system..."
-dnf -y update
+button:hover {
+    background: #63b3ff;
+}
 
-echo "[2/15] Installing packages..."
+.container {
+    padding: 25px;
+}
 
-# ERROR FIX:
-# fail2ban is in EPEL on CentOS Stream 9.
-# Install EPEL before looking for fail2ban.
+.card {
+    background: #102a43;
+    padding: 20px;
+    margin: 15px 0;
+    border-left: 5px solid #1e90ff;
+    border-radius: 8px;
+}
 
-dnf install -y epel-release
+.completed {
+    border-left-color: #00ff88;
+}
 
-dnf install -y \
-vim git wget curl firewalld audit aide openssl \
-httpd cronie sudo policycoreutils-python-utils
+.token {
+    background: black;
+    padding: 10px;
+    color: #00ff88;
+    font-family: monospace;
+}
 
-# ERROR FIX:
-# Some CentOS installations may not have fail2ban available.
-# Do not stop the lab if it cannot be installed.
+.hidden {
+    display: none;
+}
 
-dnf install -y fail2ban || echo "Fail2Ban unavailable - skipping."
+.progress {
+    background: #23395d;
+    height: 25px;
+    border-radius: 20px;
+    overflow: hidden;
+}
 
-# Install ttyd
-if ! command -v ttyd >/dev/null; then
+.progress-bar {
+    background: #00ff88;
+    height: 100%;
+    width: 0%;
+    text-align: center;
+    color: black;
+}
 
-    # ERROR FIX:
-    # ttyd is not normally in CentOS repositories.
+.certificate {
+    display: none;
+}
 
-    curl -L \
-    https://github.com/tsl0922/ttyd/releases/latest/download/ttyd.x86_64 \
-    -o /usr/local/bin/ttyd
+@media print {
+    body * {
+        display: none;
+    }
 
-    chmod +x /usr/local/bin/ttyd
-fi
+    .certificate {
+        display: block;
+        color: black;
+        padding: 50px;
+        text-align: center;
+    }
+}
+</style>
 
-TTYD_BIN=$(command -v ttyd)
+</head>
 
-
-echo "[3/15] Starting services..."
-
-systemctl enable --now firewalld auditd crond httpd
-
-
-echo "[4/15] Creating users..."
-
-# ERROR FIX:
-# -m ensures home directories exist for ttyd.
-
-for u in analyst intern contractor; do
-    id "$u" >/dev/null 2>&1 || useradd -m "$u"
-done
-
-echo "analyst:${LABPASS}" | chpasswd
-echo "intern:Password123!" | chpasswd
-echo "contractor:Password123!" | chpasswd
-
-usermod -aG wheel analyst
-
-
-echo "[5/15] Password policy..."
-
-chage -M 90 analyst
-chage -M 99999 intern
-chage -M 60 contractor
-
-
-echo "[6/15] Creating lab files..."
-
-mkdir -p /opt/company /shared
-
-echo "Payroll Data" > /opt/company/payroll.xlsx
-echo "VPN Secrets" > /opt/company/vpn.txt
-echo "Quarterly Reports" > /opt/company/reports.doc
-
-chmod 777 /opt/company /shared
-chmod 666 /opt/company/vpn.txt
-
-
-echo "[7/15] Creating web portal..."
-
-cat >/var/www/html/index.html <<EOF
-<html>
-<head><title>Security+ Blue Team Lab</title></head>
 <body>
-<h1>Security+ Blue Team Lab</h1>
 
-<p>Browser Terminal:</p>
+<header>
+<h1>Blue Team Security+ Lab</h1>
+<p>Defensive Security Training Environment</p>
+</header>
 
-<a href="http://$(hostname -I | awk '{print $1}'):${TTYD_PORT}">
-Launch Terminal
-</a>
+
+<nav>
+<button onclick="showPage('home')">Dashboard</button>
+<button onclick="showPage('directory')">Challenge Directory</button>
+<button onclick="printCertificate()">Print Certificate</button>
+</nav>
+
+
+<div class="container">
+
+<section id="home">
+
+<h2>Mission Dashboard</h2>
 
 <p>
-Username: ${LABUSER}<br>
-Password: ${LABPASS}
+Completed Challenges:
+<span id="count">0</span>/3
 </p>
 
-<h3>Objectives</h3>
-<ul>
-<li>User auditing</li>
-<li>Password policies</li>
-<li>Sudo review</li>
-<li>SSH security</li>
-<li>Firewall review</li>
-<li>Logs and audit rules</li>
-<li>AIDE verification</li>
-<li>SELinux review</li>
-</ul>
+<div class="progress">
+<div class="progress-bar" id="progress"></div>
+</div>
+
+<h3>Available Challenges</h3>
+
+<div id="challengeList"></div>
+
+</section>
+
+
+
+<section id="directory" class="hidden">
+
+<h2>Challenge Directory</h2>
+
+<div class="card">
+<h3>Challenge 1: Log Analysis</h3>
+<p>
+Review authentication logs and identify suspicious login activity.
+</p>
+
+<p>
+Objective:
+Find the hidden token inside the event record.
+</p>
+
+<input id="token1" placeholder="Enter token">
+
+<button onclick="submitToken(1)">
+Submit
+</button>
+
+</div>
+
+
+
+<div class="card">
+
+<h3>Challenge 2: Phishing Investigation</h3>
+
+<p>
+Analyze an email header and identify indicators of compromise.
+</p>
+
+<p>
+Objective:
+Recover the phishing investigation token.
+</p>
+
+<input id="token2" placeholder="Enter token">
+
+<button onclick="submitToken(2)">
+Submit
+</button>
+
+</div>
+
+
+
+<div class="card">
+
+<h3>Challenge 3: Incident Response</h3>
+
+<p>
+Perform basic containment steps after detecting malware activity.
+</p>
+
+<p>
+Objective:
+Submit the incident response completion token.
+</p>
+
+<input id="token3" placeholder="Enter token">
+
+<button onclick="submitToken(3)">
+Submit
+</button>
+
+</div>
+
+</section>
+
+</div>
+
+
+
+<div class="certificate">
+
+<h1>Certificate of Completion</h1>
+
+<h2>Blue Team Security+ Lab</h2>
+
+<p>This certifies that</p>
+
+<h2 id="certName">Security Analyst</h2>
+
+<p>
+has successfully completed all defensive security challenges.
+</p>
+
+<p>
+Completion Date:
+<span id="date"></span>
+</p>
+
+</div>
+
+
+
+<script>
+
+const challenges = [
+{
+id:1,
+name:"Log Analysis",
+token:"LOG-SEC-001"
+},
+{
+id:2,
+name:"Phishing Investigation",
+token:"MAIL-SEC-002"
+},
+{
+id:3,
+name:"Incident Response",
+token:"IR-SEC-003"
+}
+];
+
+
+let completed =
+JSON.parse(localStorage.getItem("completed")) || [];
+
+
+
+function showPage(page){
+
+document.getElementById("home")
+.classList.add("hidden");
+
+document.getElementById("directory")
+.classList.add("hidden");
+
+document.getElementById(page)
+.classList.remove("hidden");
+
+}
+
+
+
+function submitToken(id){
+
+let challenge =
+challenges.find(c=>c.id===id);
+
+let input =
+document.getElementById("token"+id).value;
+
+
+if(input === challenge.token){
+
+if(!completed.includes(id)){
+completed.push(id);
+}
+
+localStorage.setItem(
+"completed",
+JSON.stringify(completed)
+);
+
+alert("Challenge completed!");
+
+updateDashboard();
+
+}
+
+else {
+
+alert("Invalid token");
+
+}
+
+}
+
+
+
+function updateDashboard(){
+
+let count =
+document.getElementById("count");
+
+count.innerHTML =
+completed.length;
+
+
+let percent =
+(completed.length / challenges.length)*100;
+
+
+document.getElementById("progress")
+.style.width =
+percent+"%";
+
+
+let list =
+document.getElementById("challengeList");
+
+list.innerHTML="";
+
+
+challenges.forEach(c=>{
+
+let done =
+completed.includes(c.id);
+
+list.innerHTML += `
+
+<div class="card ${done?'completed':''}">
+
+<h3>${c.name}</h3>
+
+<p>
+Status:
+${done?"Completed":"Available"}
+</p>
+
+</div>
+
+`;
+
+});
+
+}
+
+
+
+function printCertificate(){
+
+if(completed.length !== challenges.length){
+
+alert(
+"Complete all challenges before printing your certificate."
+);
+
+return;
+
+}
+
+
+document.getElementById("date")
+.innerHTML =
+new Date().toLocaleDateString();
+
+
+window.print();
+
+}
+
+
+
+updateDashboard();
+
+</script>
+
 
 </body>
 </html>
-EOF
-
-
-echo "[8/15] Creating certificate..."
-
-openssl req -x509 -newkey rsa:2048 \
--days 365 -nodes \
--keyout /etc/pki/tls/private/lab.key \
--out /etc/pki/tls/certs/lab.crt \
--subj "/CN=training.lab"
-
-
-echo "[9/15] Firewall..."
-
-firewall-cmd --permanent --add-service=http
-firewall-cmd --permanent --add-port=${TTYD_PORT}/tcp
-firewall-cmd --reload
-
-
-echo "[10/15] Cron..."
-
-echo "0 * * * * root echo cleanup >/dev/null" \
->/etc/cron.d/system_cleanup
-
-
-echo "[11/15] Logs..."
-
-logger "Failed login for user admin"
-logger "Privilege escalation attempt detected"
-logger "USB device connected"
-
-
-echo "[12/15] Audit rules..."
-
-cat >/etc/audit/rules.d/secplus.rules <<EOF
--w /etc/passwd -p wa
--w /etc/shadow -p wa
--w /etc/sudoers -p wa
--w /etc/ssh/sshd_config -p wa
-EOF
-
-augenrules --load || true
-
-
-echo "[13/15] AIDE..."
-
-mkdir -p /var/lib/aide
-
-aide --init || true
-
-[[ -f /var/lib/aide/aide.db.new.gz ]] &&
-mv /var/lib/aide/aide.db.new.gz /var/lib/aide/aide.db.gz
-
-
-echo "[14/15] Fail2Ban..."
-
-# ERROR FIX:
-# Do not fail if Fail2Ban was unavailable.
-
-systemctl enable --now fail2ban 2>/dev/null || \
-echo "Fail2Ban not installed."
-
-
-echo "[15/15] Browser terminal..."
-
-cat >/etc/systemd/system/ttyd.service <<EOF
-[Unit]
-Description=Browser Terminal
-After=network.target
-
-[Service]
-User=${LABUSER}
-WorkingDirectory=/home/${LABUSER}
-ExecStart=${TTYD_BIN} --port ${TTYD_PORT} --writable /bin/bash
-Restart=always
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-systemctl daemon-reload
-systemctl enable --now ttyd
-
-
-cat >/usr/local/bin/lab-score <<'EOF'
-#!/bin/bash
-
-score=0
-total=5
-
-grep -q "PermitRootLogin no" /etc/ssh/sshd_config && ((score++))
-grep -q "PasswordAuthentication no" /etc/ssh/sshd_config && ((score++))
-[[ "$(stat -c %a /shared)" != "777" ]] && ((score++))
-[[ "$(stat -c %a /opt/company/vpn.txt)" != "666" ]] && ((score++))
-firewall-cmd --list-services | grep -q ssh || ((score++))
-
-echo "Lab Score: $score/$total"
-EOF
-
-chmod +x /usr/local/bin/lab-score
-
-
-IP=$(hostname -I | awk '{print $1}')
-
-echo
-echo "========================================"
-echo "Lab Ready"
-echo "========================================"
-echo
-echo "Open: http://${IP}"
-echo "Username: ${LABUSER}"
-echo "Password: ${LABPASS}"
