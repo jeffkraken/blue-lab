@@ -1,13 +1,37 @@
 # blue-lab
-Security+ Blue-team lab WIP
+
+Browser-based Security+ Blue Team Lab for Rocky Linux
+
+---
 
 # Security+ Blue Team Lab
 
 ## Overview
 
-This lab is designed to provide hands-on experience with common host security tasks covered in the CompTIA Security+ certification. Students will analyze a Linux server, identify security issues, and apply security best practices to harden the system.
+This project provides a hands-on blue-team lab aligned with the CompTIA Security+ certification objectives. Students investigate and harden a Linux system by identifying common security misconfigurations and applying defensive best practices.
 
-This is a blue-team lab. There are no intentionally exploitable services or malware. The objective is to identify and remediate security findings through system administration and security auditing.
+Unlike traditional labs that require SSH access, this lab is completed entirely through a web browser using an embedded Linux terminal. Students connect to the lab portal, launch the browser terminal, and perform all tasks directly from the web interface.
+
+The lab intentionally includes insecure configurations for educational purposes. There is no malware or intentionally exploitable application. The objective is to perform security auditing and system hardening using standard Linux administration tools.
+
+---
+
+## Features
+
+- Browser-based terminal (no SSH client required)
+- Rocky Linux environment
+- Apache-hosted lab portal
+- Preconfigured security misconfigurations
+- Auditd
+- AIDE
+- Fail2Ban
+- Firewalld
+- SELinux
+- System logging
+- Scheduled tasks
+- Multiple user accounts
+- Password policy review
+- File permission auditing
 
 ---
 
@@ -15,44 +39,104 @@ This is a blue-team lab. There are no intentionally exploitable services or malw
 
 Students will learn how to:
 
-* Audit user accounts and permissions
-* Apply the principle of least privilege
-* Secure SSH configuration
-* Configure and review firewall rules
-* Investigate system logs
-* Review scheduled tasks
-* Monitor system activity with Auditd
-* Verify file integrity using AIDE
-* Manage password policies
-* Inventory running services
-* Review SELinux status
-* Document security findings
+- Audit local user accounts
+- Review group memberships
+- Apply the principle of least privilege
+- Review password aging policies
+- Secure SSH configuration
+- Disable unnecessary root login
+- Review authentication settings
+- Identify insecure file permissions
+- Secure shared directories
+- Review firewall configuration
+- Inventory running services
+- Examine system logs
+- Review Auditd rules
+- Verify AIDE configuration
+- Review scheduled cron jobs
+- Review SELinux status
+- Document security findings and remediation steps
+
+---
+
+## Lab Deployment
+
+Run the installation script as root:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/jeffkraken/blue-lab/main/setup-secplus-lab.sh | bash
+```
+
+The installer will:
+
+- Update the operating system
+- Install required packages
+- Configure Apache
+- Install and configure ttyd
+- Create lab users
+- Configure intentional security weaknesses
+- Configure Auditd
+- Initialize AIDE
+- Enable Fail2Ban
+- Configure Firewalld
+- Deploy the browser-based lab portal
+
+---
+
+## Accessing the Lab
+
+After installation, the script displays the server IP address.
+
+Open a browser and navigate to:
+
+```
+http://SERVER_IP
+```
+
+Click **Launch Browser Terminal**.
+
+Login with:
+
+```
+Username: analyst
+Password: Password123!
+```
+
+No SSH client is required.
 
 ---
 
 ## Lab Accounts
 
-The following user accounts are created during setup:
+The installer creates the following users:
 
-* analyst
-* intern
-* contractor
+| Username | Purpose |
+|-----------|----------|
+| analyst | Primary student account |
+| intern | Standard user |
+| contractor | Standard user |
 
-Each account is assigned a default password during installation. Instructors may change these passwords before distributing the lab.
+Default password:
+
+```
+Password123!
+```
+
+Instructors are encouraged to change passwords before classroom use.
 
 ---
 
 ## Student Tasks
 
-Complete the following activities:
+Students should complete the following activities:
 
 1. Identify all local user accounts.
 2. Review group memberships.
-3. Determine which users have administrative privileges.
+3. Determine administrative privileges.
 4. Audit password expiration policies.
-5. Review the SSH configuration.
-6. Disable unnecessary root access.
-7. Review authentication settings.
+5. Review SSH configuration.
+6. Disable root SSH login.
+7. Disable password authentication for SSH.
 8. Identify insecure file permissions.
 9. Secure shared directories.
 10. Review firewall configuration.
@@ -61,96 +145,102 @@ Complete the following activities:
 13. Review Auditd rules.
 14. Verify the AIDE database.
 15. Review scheduled cron jobs.
-16. Identify unnecessary services.
-17. Review SELinux configuration.
-18. Document all findings and remediation steps.
+16. Review SELinux configuration.
+17. Identify unnecessary software or services.
+18. Document all remediation steps.
 
 ---
 
-## Helpful Commands
+## Useful Commands
 
-View users:
+List users:
 
-```
+```bash
 cat /etc/passwd
 ```
 
-View sudo privileges:
+Review group membership:
 
+```bash
+groups analyst
 ```
+
+Review sudo access:
+
+```bash
 sudo -l
 ```
 
-Review password aging:
+Password aging:
 
-```
-chage -l username
+```bash
+chage -l analyst
 ```
 
-Review SSH configuration:
+SSH configuration:
 
-```
+```bash
 cat /etc/ssh/sshd_config
 ```
 
-Check firewall rules:
+Firewall configuration:
 
-```
+```bash
 firewall-cmd --list-all
 ```
 
-View running services:
+Running services:
 
-```
+```bash
 systemctl list-units --type=service
 ```
 
-Review logs:
+Recent system logs:
 
-```
+```bash
 journalctl
 ```
 
-View authentication logs:
+Authentication logs:
 
-```
+```bash
 journalctl -u sshd
 ```
 
-Search recent log messages:
+Audit rules:
 
-```
-journalctl -xe
-```
-
-Review Auditd rules:
-
-```
+```bash
 auditctl -l
 ```
 
 Run an AIDE integrity check:
 
-```
+```bash
 aide --check
 ```
 
 Review cron jobs:
 
-```
+```bash
 ls -la /etc/cron*
 ```
 
-Check SELinux status:
+SELinux status:
 
-```
+```bash
 getenforce
 ```
 
-List listening ports:
+Listening network ports:
 
-```
+```bash
 ss -tulpn
+```
+
+View lab score (if enabled):
+
+```bash
+lab-score
 ```
 
 ---
@@ -159,23 +249,48 @@ ss -tulpn
 
 Students should be able to:
 
-* Remove unnecessary administrative access.
-* Harden the SSH configuration.
-* Correct insecure file permissions.
-* Verify firewall settings.
-* Understand system logging.
-* Review audit policies.
-* Verify file integrity.
-* Improve password policies.
-* Reduce unnecessary attack surface.
-* Explain each security improvement made.
+- Remove unnecessary administrative access
+- Harden the SSH configuration
+- Correct insecure permissions
+- Secure shared directories
+- Verify firewall settings
+- Review system logs
+- Understand Auditd monitoring
+- Verify AIDE integrity checking
+- Review password policies
+- Reduce unnecessary attack surface
+- Explain each remediation performed
 
 ---
 
 ## Instructor Notes
 
-This lab is intended for educational use only. It demonstrates common security misconfigurations that students are expected to identify and remediate as part of a defensive security exercise. It is recommended that this lab be deployed in an isolated training environment or otherwise restricted to authorized participants.
+This lab intentionally includes several insecure configurations that students are expected to identify and correct.
+
+Examples include:
+
+- Weak SSH configuration
+- Root SSH login enabled
+- World-writable files and directories
+- Weak password aging policies
+- Overly permissive file permissions
+- Security-relevant log entries
+- Reviewable Auditd rules
+- Scheduled system tasks
+
+The lab is intended for isolated training environments and should not be exposed to production networks.
 
 ---
 
-End of README
+## Requirements
+
+- Rocky Linux 9
+- Root access
+- Internet connection during installation
+- Modern web browser (Chrome, Firefox, Edge, or Safari)
+
+---
+
+## License
+
+This project is intended for educational and training purposes.
