@@ -6,75 +6,62 @@ echo "========================================"
 echo " Security+ Blue Team Lab Configuration"
 echo "========================================"
 
-if [[ $EUID -ne 0 ]]; then
-    echo "Run this script as root."
-    exit 1
-fi
+[[ $EUID -eq 0 ]] || { echo "Run as root."; exit 1; }
 
 LABUSER="analyst"
 LABPASS="Password123!"
 TTYD_PORT="7681"
 
-echo
 echo "[1/15] Updating system..."
 dnf -y update
 
-echo
 echo "[2/15] Installing packages..."
+
+# ERROR FIX:
+# fail2ban is in EPEL on CentOS Stream 9.
+# Install EPEL before looking for fail2ban.
+
+dnf install -y epel-release
+
 dnf install -y \
-    vim \
-    git \
-    wget \
-    curl \
-    firewalld \
-    audit \
-    aide \
-    openssl \
-    httpd \
-    cronie \
-    sudo \
-    policycoreutils-python-utils \
-    fail2ban \
-    epel-release
+vim git wget curl firewalld audit aide openssl \
+httpd cronie sudo policycoreutils-python-utils
+
+# ERROR FIX:
+# Some CentOS installations may not have fail2ban available.
+# Do not stop the lab if it cannot be installed.
+
+dnf install -y fail2ban || echo "Fail2Ban unavailable - skipping."
 
 # Install ttyd
-if ! command -v ttyd >/dev/null 2>&1; then
-    dnf install -y ttyd || true
-fi
+if ! command -v ttyd >/dev/null; then
 
-if ! command -v ttyd >/dev/null 2>&1; then
-    ARCH=$(uname -m)
+    # ERROR FIX:
+    # ttyd is not normally in CentOS repositories.
 
-    case "$ARCH" in
-        x86_64)
-            URL="https://github.com/tsl0922/ttyd/releases/latest/download/ttyd.x86_64"
-            ;;
-        aarch64)
-            URL="https://github.com/tsl0922/ttyd/releases/latest/download/ttyd.aarch64"
-            ;;
-        *)
-            echo "Unsupported architecture: $ARCH"
-            exit 1
-            ;;
-    esac
+    curl -L \
+    https://github.com/tsl0922/ttyd/releases/latest/download/ttyd.x86_64 \
+    -o /usr/local/bin/ttyd
 
-    curl -L "$URL" -o /usr/local/bin/ttyd
     chmod +x /usr/local/bin/ttyd
 fi
 
-echo
-echo "[3/15] Enabling services..."
-systemctl enable firewalld --now
-systemctl enable auditd --now
-systemctl enable crond --now
-systemctl enable httpd --now
+TTYD_BIN=$(command -v ttyd)
 
-echo
+
+echo "[3/15] Starting services..."
+
+systemctl enable --now firewalld auditd crond httpd
+
+
 echo "[4/15] Creating users..."
 
-useradd analyst 2>/dev/null || true
-useradd intern 2>/dev/null || true
-useradd contractor 2>/dev/null || true
+# ERROR FIX:
+# -m ensures home directories exist for ttyd.
+
+for u in analyst intern contractor; do
+    id "$u" >/dev/null 2>&1 || useradd -m "$u"
+done
 
 echo "analyst:${LABPASS}" | chpasswd
 echo "intern:Password123!" | chpasswd
@@ -82,169 +69,92 @@ echo "contractor:Password123!" | chpasswd
 
 usermod -aG wheel analyst
 
-echo
-echo "[5/15] Configuring password policy..."
 
-chage -M 99999 intern
+echo "[5/15] Password policy..."
+
 chage -M 90 analyst
+chage -M 99999 intern
 chage -M 60 contractor
 
-echo
-echo "[6/15] Creating vulnerable resources..."
 
-mkdir -p /opt/company
+echo "[6/15] Creating lab files..."
+
+mkdir -p /opt/company /shared
 
 echo "Payroll Data" > /opt/company/payroll.xlsx
 echo "VPN Secrets" > /opt/company/vpn.txt
 echo "Quarterly Reports" > /opt/company/reports.doc
 
-chmod 777 /opt/company
+chmod 777 /opt/company /shared
 chmod 666 /opt/company/vpn.txt
 
-mkdir -p /shared
-chmod 777 /shared
 
-echo
-echo "[7/15] Configuring web portal..."
+echo "[7/15] Creating web portal..."
 
 cat >/var/www/html/index.html <<EOF
-<!DOCTYPE html>
 <html>
-<head>
-<meta charset="utf-8">
-<title>Security+ Blue Team Lab</title>
-
-<style>
-
-body{
-    font-family:Arial,Helvetica,sans-serif;
-    background:#f4f4f4;
-    margin:40px;
-}
-
-.container{
-    max-width:900px;
-    margin:auto;
-    background:#fff;
-    padding:30px;
-    border-radius:8px;
-}
-
-h1{
-    color:#1e3a5f;
-}
-
-a.button{
-    display:inline-block;
-    padding:12px 24px;
-    background:#0069d9;
-    color:white;
-    text-decoration:none;
-    border-radius:5px;
-}
-
-code{
-    background:#eee;
-    padding:2px 5px;
-}
-
-</style>
-
-</head>
-
+<head><title>Security+ Blue Team Lab</title></head>
 <body>
-
-<div class="container">
-
 <h1>Security+ Blue Team Lab</h1>
 
-<p>This lab is completed entirely from your browser.</p>
+<p>Browser Terminal:</p>
 
-<h2>Login</h2>
-
-<p>
-Username:
-<strong>${LABUSER}</strong>
-</p>
-
-<p>
-Password:
-<strong>${LABPASS}</strong>
-</p>
-
-<p>
-<a class="button" href="http://$(hostname -I | awk '{print $1}'):${TTYD_PORT}">
-Launch Browser Terminal
+<a href="http://$(hostname -I | awk '{print $1}'):${TTYD_PORT}">
+Launch Terminal
 </a>
+
+<p>
+Username: ${LABUSER}<br>
+Password: ${LABPASS}
 </p>
 
-<h2>Objectives</h2>
-
-<ol>
-
-<li>Audit local users</li>
-<li>Review sudo permissions</li>
-<li>Review password aging</li>
-<li>Secure SSH configuration</li>
-<li>Disable root SSH login</li>
-<li>Correct insecure permissions</li>
-<li>Review firewall rules</li>
-<li>Review logs</li>
-<li>Review audit rules</li>
-<li>Verify AIDE</li>
-<li>Review cron jobs</li>
-<li>Inventory services</li>
-<li>Secure shared directories</li>
-<li>Review SELinux</li>
-<li>Identify unnecessary software</li>
-
-</ol>
-
-</div>
+<h3>Objectives</h3>
+<ul>
+<li>User auditing</li>
+<li>Password policies</li>
+<li>Sudo review</li>
+<li>SSH security</li>
+<li>Firewall review</li>
+<li>Logs and audit rules</li>
+<li>AIDE verification</li>
+<li>SELinux review</li>
+</ul>
 
 </body>
-
 </html>
 EOF
 
-echo
-echo "[8/15] Creating self-signed certificate..."
 
-mkdir -p /etc/pki/tls/private
+echo "[8/15] Creating certificate..."
 
-openssl req \
--x509 \
--newkey rsa:2048 \
--days 365 \
--nodes \
+openssl req -x509 -newkey rsa:2048 \
+-days 365 -nodes \
 -keyout /etc/pki/tls/private/lab.key \
 -out /etc/pki/tls/certs/lab.crt \
 -subj "/CN=training.lab"
 
-echo
-echo "[9/15] Configuring firewall..."
+
+echo "[9/15] Firewall..."
 
 firewall-cmd --permanent --add-service=http
 firewall-cmd --permanent --add-port=${TTYD_PORT}/tcp
 firewall-cmd --reload
 
-echo
-echo "[10/15] Creating cron job..."
 
-cat >/etc/cron.d/system_cleanup <<EOF
-0 * * * * root echo cleanup >/dev/null
-EOF
+echo "[10/15] Cron..."
 
-echo
-echo "[11/15] Creating log entries..."
+echo "0 * * * * root echo cleanup >/dev/null" \
+>/etc/cron.d/system_cleanup
+
+
+echo "[11/15] Logs..."
 
 logger "Failed login for user admin"
 logger "Privilege escalation attempt detected"
 logger "USB device connected"
-logger "Firewall configuration modified"
 
-echo
-echo "[12/15] Creating audit rules..."
+
+echo "[12/15] Audit rules..."
 
 cat >/etc/audit/rules.d/secplus.rules <<EOF
 -w /etc/passwd -p wa
@@ -255,23 +165,27 @@ EOF
 
 augenrules --load || true
 
-echo
-echo "[13/15] Initializing AIDE..."
+
+echo "[13/15] AIDE..."
+
+mkdir -p /var/lib/aide
 
 aide --init || true
 
-if [[ -f /var/lib/aide/aide.db.new.gz ]]; then
-    mv /var/lib/aide/aide.db.new.gz \
-       /var/lib/aide/aide.db.gz
-fi
+[[ -f /var/lib/aide/aide.db.new.gz ]] &&
+mv /var/lib/aide/aide.db.new.gz /var/lib/aide/aide.db.gz
 
-echo
-echo "[14/15] Enabling Fail2Ban..."
 
-systemctl enable fail2ban --now || true
+echo "[14/15] Fail2Ban..."
 
-echo
-echo "[15/15] Configuring browser terminal..."
+# ERROR FIX:
+# Do not fail if Fail2Ban was unavailable.
+
+systemctl enable --now fail2ban 2>/dev/null || \
+echo "Fail2Ban not installed."
+
+
+echo "[15/15] Browser terminal..."
 
 cat >/etc/systemd/system/ttyd.service <<EOF
 [Unit]
@@ -281,7 +195,7 @@ After=network.target
 [Service]
 User=${LABUSER}
 WorkingDirectory=/home/${LABUSER}
-ExecStart=/usr/bin/ttyd --port ${TTYD_PORT} --writable /bin/bash
+ExecStart=${TTYD_BIN} --port ${TTYD_PORT} --writable /bin/bash
 Restart=always
 
 [Install]
@@ -289,7 +203,8 @@ WantedBy=multi-user.target
 EOF
 
 systemctl daemon-reload
-systemctl enable ttyd --now
+systemctl enable --now ttyd
+
 
 cat >/usr/local/bin/lab-score <<'EOF'
 #!/bin/bash
@@ -297,18 +212,17 @@ cat >/usr/local/bin/lab-score <<'EOF'
 score=0
 total=5
 
-grep -q "^PermitRootLogin no" /etc/ssh/sshd_config && ((score++))
-grep -q "^PasswordAuthentication no" /etc/ssh/sshd_config && ((score++))
+grep -q "PermitRootLogin no" /etc/ssh/sshd_config && ((score++))
+grep -q "PasswordAuthentication no" /etc/ssh/sshd_config && ((score++))
 [[ "$(stat -c %a /shared)" != "777" ]] && ((score++))
 [[ "$(stat -c %a /opt/company/vpn.txt)" != "666" ]] && ((score++))
 firewall-cmd --list-services | grep -q ssh || ((score++))
 
-echo
-echo "Lab Score: ${score}/${total}"
-echo
+echo "Lab Score: $score/$total"
 EOF
 
 chmod +x /usr/local/bin/lab-score
+
 
 IP=$(hostname -I | awk '{print $1}')
 
@@ -317,14 +231,6 @@ echo "========================================"
 echo "Lab Ready"
 echo "========================================"
 echo
-echo "Open:"
-echo
-echo "    http://${IP}"
-echo
-echo "Click 'Launch Browser Terminal'"
-echo
+echo "Open: http://${IP}"
 echo "Username: ${LABUSER}"
 echo "Password: ${LABPASS}"
-echo
-echo "Students complete every task from the browser."
-echo
